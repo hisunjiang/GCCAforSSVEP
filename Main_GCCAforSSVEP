@@ -1,0 +1,141 @@
+% ------------------------------------------
+% Main for generalized CCA
+% Dataset: 
+%       the benchmark SSVEP dataset
+% Contact info:
+%       Qiang Sun
+%       hisunjiang@outlook.com
+%       Chongqing University, EE BCI lab
+% Further info:
+%       Please feel free to contact me if you have any questions.
+%       Collaborative research is also expected.
+% ------------------------------------------
+
+clear all
+close all
+for Ntime=1:8
+for N_subject = 1:35
+
+%% Load data 
+% add the file address of benchmark dataset
+string=['ssvep_benchmark_dataset\S', num2str(N_subject), '.mat'];
+filename1 = string;
+filename2 = 'ssvep_benchmark_dataset\Freq_Phase.mat';
+load (filename1)
+load (filename2)
+
+%% Data epoch
+% eeg=data([61:63],:,:,:);              % 3 channels
+% eeg=data([54 58 61:63],:,:,:);        % 5 channels   
+% eeg=data([54:55 57:58 61:63],:,:,:);  % 7 channels
+eeg=data([48 54:58 61:63],:,:,:);       % 9 channels
+dataLength=(Ntime-1)*0.1+0.3;           % time intervals
+Nt = 5 ;                                % the number of training trials
+fs = 250;                               % sampling rate
+is_center_std = 0;                      % normalization
+SSVEPdata=eeg(:,0.64*250:(0.64+dataLength)*250-1,:,:); % latency is 140 ms
+SSVEPdata = SSVEPdata(:,:,:,1:Nt+1);
+
+%% Band pass filter
+Wp = [6/fs*2, 90/fs*2];
+Ws = [4/fs*2, 95/fs*2];
+[N, Wn]=cheb1ord(Wp, Ws, 3, 40);
+[b, a] = cheby1(N, 0.5, Wn);
+
+[N_channel,N_point, N_target, N_block] = size(SSVEPdata);
+for bloc_i = 1:N_block
+    for targ_i = 1:N_target
+        for chan_i = 1:N_channel
+          SSVEPdataFiltered(chan_i,:,targ_i,bloc_i) = filtfilt(b,a,SSVEPdata(chan_i,:,targ_i,bloc_i));
+        end
+    end
+end
+
+%% Normalize data to zero mean
+if is_center_std==1
+    for bloc_i = 1:N_block
+        for targ_i = 1:N_target
+            temp_EEG = SSVEPdataFiltered(:,:,targ_i,bloc_i);
+            temp_EEG = temp_EEG -mean(temp_EEG, 2)*ones(1, N_point);
+%                 temp_EEG = temp_EEG./(std(temp_EEG')'*ones(1,N_point));
+             SSVEPdataFiltered(:,:,targ_i,bloc_i) = temp_EEG;
+        end
+    end
+end
+
+%% Reference
+tau = N_point;
+t=1/fs:1/fs:tau/fs;   
+
+Y=zeros(10, N_point, N_target);
+Y0=[];
+for targ_i = 1:N_target
+    for Nhar=1:5
+        Y0=cat(1,Y0,cat(1,sin(2*pi*freqs(targ_i)*Nhar*t),...
+            cos(2*pi*freqs(targ_i)*Nhar*t)));       
+    end
+    Y(:,:, targ_i) = Y0;
+    Y0=[];
+end
+
+%% classification
+% Leave one block out
+for loocv_i = 1:N_block
+    traindata = SSVEPdataFiltered;
+    traindata(:, :, :, loocv_i) = [];
+    for targ_i = 1:N_target
+        aver_traindata(:, :, targ_i) = squeeze(mean(squeeze(traindata(:,:,targ_i,:)),3));
+    end
+    testdata = squeeze(SSVEPdataFiltered(:, :, :, loocv_i));
+    % labels
+    truelabels=freqs;
+    
+    %% Training stage
+     for targ_i = 1:N_target
+        X1 = reshape(squeeze(traindata(:,:, targ_i,:)), N_channel, N_point*Nt);
+        X2 = repmat(aver_traindata(:,:,targ_i), 1, Nt);
+        X3 = repmat(Y(:,:,targ_i), 1, Nt);           
+        X = [X1;X2;X3];
+        D = blkdiag(X1*X1',X2*X2',X3*X3');
+        [V, P] = eig(D\(X*X'));
+        P = diag(P);
+        [~, index] = sort(P, 'descend');
+        w = V(:,index(1));
+        w1(:, targ_i) = w(1:N_channel, :);
+        w2(:, targ_i) = w(N_channel+1:2*N_channel, :);
+        w3(:, targ_i) = w(2*N_channel+1:end, :);
+     end 
+     
+    %% Testing stage, 40 trials per testing block
+    for trial_i=1:length(testdata(1,1,:))
+        for targ_j=1:length(freqs)
+            % replace w1/2/3(:, targ_j) to w1/2/3 to get the ensemble version of
+            % GCCA
+            weighted_test = w1(:, targ_j)'*testdata(:,:,trial_i);
+            weighted_train = w2(:, targ_j)'*aver_traindata(:,:,targ_j);
+            weighted_ref = w3(:, targ_j)'*Y(:,:, targ_j);
+            % correlation
+            coefficienceMatrix = corrcoef(weighted_test,weighted_train);
+            rho1(targ_j) = coefficienceMatrix(1,2);
+            coefficienceMatrix = corrcoef(weighted_test, weighted_ref);
+            rho2(targ_j) = coefficienceMatrix(1,2);
+        end
+            
+            % target detection
+            rho = sign(rho1).*rho1.^2+sign(rho2).*rho2.^2;
+            [~, index] = max(rho);
+            outputlabels(trial_i) = freqs(index);
+            
+    end % end trial_i
+    trueNum = sum((outputlabels-truelabels)==0);
+    acc(loocv_i) = trueNum/length(truelabels);
+    fprintf('The %d-th CV accuracy is: %.4f, samples: %d/%d\n',loocv_i,...
+        acc(loocv_i),trueNum,length(testdata(1,1,:)))
+end % end looCv_i
+% data visualization
+AllSubjectAcc(N_subject,Ntime) = mean(acc);
+fprintf(' %.2f s, subject %d: ACC: %.4f\n\n ',dataLength, N_subject, AllSubjectAcc(N_subject,Ntime))
+
+clearvars -except AllSubjectAcc Ntime
+end
+end 
