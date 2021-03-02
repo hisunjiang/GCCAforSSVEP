@@ -6,7 +6,7 @@ This work is motivated by recented studies of Wei et al. [1] and Wong et al. [2]
 # Partial results 
 ![image](https://user-images.githubusercontent.com/30659685/109600871-dffa6680-7b58-11eb-9863-7cdbad360cea.png)
 # References
-[1]	Q. Wei, et al., “A Training Data-Driven Canonical Correlation Analysis Algorithm for Designing Spatial Filters to Enhance Performance of SSVEP-Based BCIs,” Int. J. Neural Syst., vol. 30, no. 5, pp. 2050020, May, 2020.
-[2]	C. M. Wong, et al., “Spatial filtering in SSVEP-based BCIs: Unified framework and new improvements,” IEEE Trans. Biomed. Eng., vol. 67, no. 11, pp. 3057-3072, Feb 21, 2020.
+- [1]	Q. Wei, et al., “A Training Data-Driven Canonical Correlation Analysis Algorithm for Designing Spatial Filters to Enhance Performance of SSVEP-Based BCIs,” Int. J. Neural Syst., vol. 30, no. 5, pp. 2050020, May, 2020.
+- [2]	C. M. Wong, et al., “Spatial filtering in SSVEP-based BCIs: Unified framework and new improvements,” IEEE Trans. Biomed. Eng., vol. 67, no. 11, pp. 3057-3072, Feb 21, 2020.
 # Citation
 Q. sun et al., "Improving SSVEP Identification Accuracy via Generalized Canonical Correlation Analysis", in 10th International IEEE/EMBS Conference on Neural Engineering (NER), 2021, accepted. 
